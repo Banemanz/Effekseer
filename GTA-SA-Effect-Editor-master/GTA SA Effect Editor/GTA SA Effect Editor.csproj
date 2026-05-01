@@ -54,6 +54,7 @@
   <ItemGroup>
     <Compile Include="EffectFileHandlers\EffectFileReader.cs" />
     <Compile Include="EffectFileHandlers\EffectFileWriter.cs" />
+    <Compile Include="EffectFileHandlers\EfkProjExporter.cs" />
     <Compile Include="FormStyleItems\Autocomplete.cs" />
     <Compile Include="EffectFileHandlers\EffectParser.cs" />
     <Compile Include="FormStyleItems\Animation\Animation.cs" />

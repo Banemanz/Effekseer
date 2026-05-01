@@ -1,0 +1,20 @@
+name: build-gta-sa-effect-editor
+
+on:
+  push:
+    paths:
+      - 'GTA SA Effect Editor/**'
+      - '.github/workflows/build-gta-sa-effect-editor.yml'
+  pull_request:
+    paths:
+      - 'GTA SA Effect Editor/**'
+      - '.github/workflows/build-gta-sa-effect-editor.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build solution
+        run: msbuild "GTA SA Effect Editor.sln" /p:Configuration=Release /m

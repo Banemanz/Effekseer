@@ -161,14 +161,22 @@ namespace GTA_SA_Effect_Editor
             {
                 Title = "Экспорт эффекта",
                 InitialDirectory = GetLastDirectory(),
-                Filter = "Эффект (*.fxs)|*.fxs|Контейнер эффектов (*.fxp)|*.fxp|Текстовый файл (*.txt)|*.txt",
+                Filter = "Эффект (*.fxs)|*.fxs|Проект Effekseer (*.efkproj)|*.efkproj|Контейнер эффектов (*.fxp)|*.fxp|Текстовый файл (*.txt)|*.txt",
                 AddExtension = true,
                 FileName = "Новый эффект"
             };
             if (saveFileDialog.ShowDialog() == DialogResult.OK)
             {
                 EffectFileWriter effectFileWriter = new EffectFileWriter();
-                effectFileWriter.WriteFxs(saveFileDialog.FileName, _effects[lbEffects.SelectedIndex]);
+                if (Path.GetExtension(saveFileDialog.FileName).Equals(".efkproj", StringComparison.OrdinalIgnoreCase))
+                {
+                    EfkProjExporter exporter = new EfkProjExporter();
+                    exporter.Export(saveFileDialog.FileName, _effects[lbEffects.SelectedIndex]);
+                }
+                else
+                {
+                    effectFileWriter.WriteFxs(saveFileDialog.FileName, _effects[lbEffects.SelectedIndex]);
+                }
             }
 
             Enabled = true;
