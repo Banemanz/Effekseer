@@ -1,0 +1,27 @@
+name: effekseer-editor-build
+
+on:
+  pull_request:
+    paths:
+      - 'Dev/Editor/**'
+      - '.github/workflows/effekseer-editor-build.yml'
+  push:
+    paths:
+      - 'Dev/Editor/**'
+      - '.github/workflows/effekseer-editor-build.yml'
+
+jobs:
+  build-editor:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build Effekseer editor
+        shell: cmd
+        run: |
+          python build.py from_ci

@@ -35,6 +35,8 @@ namespace Effekseer
 			string export = string.Empty;
 			float magnification = 0.0f;
 			bool materialCache = false;
+			string fxsInput = string.Empty;
+			string fxsOutput = string.Empty;
 
 			for (int i = 0; i < args.Length; i++)
 			{
@@ -86,6 +88,23 @@ namespace Effekseer
 				{
 					materialCache = true;
 				}
+				else if (args[i] == "--fxs-in")
+				{
+					i++;
+					if (i < args.Length)
+					{
+						fxsInput = args[i];
+					}
+				}
+				else if (args[i] == "--fxs-out")
+				{
+					i++;
+					if (i < args.Length)
+					{
+						fxsOutput = args[i];
+					}
+				}
+
 				else
 				{
 					input = args[i];
@@ -94,13 +113,13 @@ namespace Effekseer
 
 			if (System.Diagnostics.Debugger.IsAttached)
 			{
-				return Exec(gui, input, output, export, format, magnification, materialCache);
+				return Exec(gui, input, output, export, format, magnification, materialCache, fxsInput, fxsOutput);
 			}
 			else
 			{
 				try
 				{
-					return Exec(gui, input, output, export, format, magnification, materialCache);
+					return Exec(gui, input, output, export, format, magnification, materialCache, fxsInput, fxsOutput);
 				}
 				catch (Exception e)
 				{
@@ -111,12 +130,26 @@ namespace Effekseer
 			return 1;
 		}
 
-		static int Exec(bool gui, string input, string output, string export, string format, float magnification, bool materialCache)
+		static int Exec(bool gui, string input, string output, string export, string format, float magnification, bool materialCache, string fxsInput, string fxsOutput)
 		{
 			var app = new App();
 			if (!app.Initialize(gui))
 			{
 				return 1;
+			}
+
+			if (!string.IsNullOrEmpty(fxsInput) || !string.IsNullOrEmpty(fxsOutput))
+			{
+				if (string.IsNullOrEmpty(fxsInput) || string.IsNullOrEmpty(fxsOutput))
+				{
+					Console.Error.WriteLine("Both --fxs-in and --fxs-out are required.");
+					Core.Dispose();
+					return 1;
+				}
+
+				IO.GtaSaFxsImporter.ConvertToEfkProj(fxsInput, fxsOutput);
+				Core.Dispose();
+				return 0;
 			}
 
 			try
