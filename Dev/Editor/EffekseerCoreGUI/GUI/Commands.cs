@@ -583,5 +583,33 @@ namespace Effekseer.GUI
 
 			return true;
 		}
+		[Name(value = "InternalImportGTASA")]
+		[UniqueName(value = "Internal.ImportGTASA")]
+		public static bool ImportGtaSaEffect()
+		{
+			var result = swig.FileDialog.OpenDialog("fxs", System.IO.Directory.GetCurrentDirectory());
+			if (string.IsNullOrEmpty(result))
+			{
+				result = swig.FileDialog.OpenDialog("fxp", System.IO.Directory.GetCurrentDirectory());
+			}
+
+			if (string.IsNullOrEmpty(result)) return false;
+
+			try
+			{
+				RunWithUnsavedWarning(() =>
+				{
+					Core.ReplaceRoot(Effekseer.Importer.GtaSaFxImporter.ImportToEffekseer(result));
+					System.IO.Directory.SetCurrentDirectory(System.IO.Path.GetDirectoryName(result));
+				});
+			}
+			catch (Exception e)
+			{
+				swig.GUIManager.show(e.Message, "Error", swig.DialogStyle.Error, swig.DialogButtons.OK);
+				return false;
+			}
+			return true;
+		}
+
 	}
 }

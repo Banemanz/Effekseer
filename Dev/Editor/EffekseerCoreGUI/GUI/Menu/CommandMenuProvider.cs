@@ -140,6 +140,11 @@ namespace Effekseer.GUI.Menu
 		{
 			var importMenu = new Menu(input, Icons.Empty);
 
+			var gtaItem = new MenuItem();
+			gtaItem.Label = new MultiLanguageString("Import GTA SA .fxs/.fxp");
+			gtaItem.Clicked += () => Commands.ImportGtaSaEffect();
+			importMenu.Controls.Add(gtaItem);
+
 			for (int c = 0; c < Core.ImportScripts.Count; c++)
 			{
 				var item = new MenuItem();
