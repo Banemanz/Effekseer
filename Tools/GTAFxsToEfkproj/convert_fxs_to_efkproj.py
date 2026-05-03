@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import argparse
+import copy
 import os
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+
+TEMPLATE_PATH = "Release/Sample/01_Suzuki01/001_magma_effect/aura.efkproj"
 
 
 def parse_fxs(path):
@@ -18,37 +21,25 @@ def parse_fxs(path):
     for line in lines:
         if not line:
             continue
-
         if line.startswith('NAME:') and cur is None:
             system_name = line.split(':', 1)[1].strip() or system_name
-
         if line.startswith('FX_PRIM_EMITTER_DATA'):
             if cur is not None:
                 prims.append(cur)
-            cur = {
-                'name': 'GTA_FX',
-                'texture': '',
-                'life': 1.0,
-                'emit_rate': 30.0,
-                'size_x': 1.0,
-                'size_y': 1.0,
-            }
+            cur = {'name':'GTA_FX','texture':'','life':1.0,'emit_rate':30.0,'size_x':1.0,'size_y':1.0}
             current_info = ''
             pending = None
             continue
-
         if cur is None:
             continue
-
         if line.startswith('FX_INFO_'):
             current_info = line
             pending = None
             continue
-
         if line.startswith('NAME:'):
-            cur['name'] = line.split(':', 1)[1].strip() or cur['name']
+            cur['name'] = line.split(':',1)[1].strip() or cur['name']
         elif line.startswith('TEXTURE:'):
-            tex = line.split(':', 1)[1].strip()
+            tex = line.split(':',1)[1].strip()
             if tex.upper() != 'NULL':
                 cur['texture'] = tex
         elif line.startswith('RATE:'):
@@ -63,62 +54,63 @@ def parse_fxs(path):
             key, expected = pending
             if current_info.startswith(expected):
                 try:
-                    cur[key] = max(0.01, float(line.split(':', 1)[1].strip()))
+                    cur[key] = max(0.01, float(line.split(':',1)[1].strip()))
                 except ValueError:
                     pass
                 pending = None
 
     if cur is not None:
         prims.append(cur)
-
     return system_name, prims
 
 
-def add_text(parent, name, text):
-    e = ET.SubElement(parent, name)
-    e.text = str(text)
-    return e
+def set_text(node, path, value):
+    t = node.find(path)
+    if t is not None:
+        t.text = str(value)
 
 
-def add_range(parent, name, value):
-    e = ET.SubElement(parent, name)
-    add_text(e, 'Center', value)
-    add_text(e, 'Max', value)
-    add_text(e, 'Min', value)
+def apply_prim(node, prim):
+    set_text(node, 'Name', prim['name'])
+    if prim['texture']:
+        set_text(node, 'RendererCommonValues/ColorTexture', prim['texture'])
+
+    life_frames = int(max(1.0, prim['life'] * 60.0))
+    for p in ['CommonValues/Life/Center','CommonValues/Life/Max','CommonValues/Life/Min']:
+        set_text(node, p, life_frames)
+
+    gen = int(max(1.0, 60.0 / max(1.0, prim['emit_rate'])))
+    for p in ['CommonValues/GenerationTime/Center','CommonValues/GenerationTime/Max','CommonValues/GenerationTime/Min']:
+        set_text(node, p, gen)
+
+    set_text(node, 'ScalingValues/Type', 0)
+    set_text(node, 'ScalingValues/Fixed/ScaleX', prim['size_x'])
+    set_text(node, 'ScalingValues/Fixed/ScaleY', prim['size_y'])
+    set_text(node, 'ScalingValues/Fixed/ScaleZ', 1)
 
 
-def build_efkproj(system_name, prims):
-    root = ET.Element('EffekseerProject')
-    root_node = ET.SubElement(root, 'Root')
-    add_text(root_node, 'Name', system_name)
-    children = ET.SubElement(root_node, 'Children')
+def build_from_template(system_name, prims):
+    tree = ET.parse(TEMPLATE_PATH)
+    root = tree.getroot()
+    root_name = root.find('Root/Name')
+    if root_name is not None:
+        root_name.text = system_name
+
+    children = root.find('Root/Children')
+    if children is None:
+        raise RuntimeError('Invalid template: missing Root/Children')
+
+    first_node = children.find('Node')
+    if first_node is None:
+        raise RuntimeError('Invalid template: missing node template')
+
+    for c in list(children):
+        children.remove(c)
 
     for prim in prims:
-        node = ET.SubElement(children, 'Node')
-
-        common = ET.SubElement(node, 'CommonValues')
-        max_gen = ET.SubElement(common, 'MaxGeneration')
-        add_text(max_gen, 'Infinite', 'True')
-
-        life_frames = int(max(1.0, prim['life'] * 60.0))
-        add_range(common, 'Life', life_frames)
-
-        gen = int(max(1.0, 60.0 / max(1.0, prim['emit_rate'])))
-        add_range(common, 'GenerationTime', gen)
-
-        scaling = ET.SubElement(node, 'ScalingValues')
-        add_text(scaling, 'Type', 0)
-        fixed = ET.SubElement(scaling, 'Fixed')
-        add_text(fixed, 'ScaleX', prim['size_x'])
-        add_text(fixed, 'ScaleY', prim['size_y'])
-        add_text(fixed, 'ScaleZ', 1)
-
-        renderer = ET.SubElement(node, 'RendererCommonValues')
-        if prim['texture']:
-            add_text(renderer, 'ColorTexture', prim['texture'])
-
-        name = ET.SubElement(node, 'Name')
-        name.text = prim['name']
+        node = copy.deepcopy(first_node)
+        apply_prim(node, prim)
+        children.append(node)
 
     return root
 
@@ -131,20 +123,16 @@ def save_pretty_xml(root, output_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Convert GTA SA .fxs/.fxp into Effekseer .efkproj')
-    parser.add_argument('input', help='Input .fxs/.fxp file')
-    parser.add_argument('-o', '--output', help='Output .efkproj path')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('input')
+    parser.add_argument('-o', '--output')
     args = parser.parse_args()
 
-    output = args.output
-    if not output:
-        output = os.path.splitext(args.input)[0] + '.efkproj'
-
-    system_name, prims = parse_fxs(args.input)
+    output = args.output or os.path.splitext(args.input)[0] + '.efkproj'
+    name, prims = parse_fxs(args.input)
     if not prims:
-        raise SystemExit('No FX_PRIM_EMITTER_DATA entries found in input.')
-
-    root = build_efkproj(system_name, prims)
+        raise SystemExit('No FX_PRIM_EMITTER_DATA found')
+    root = build_from_template(name, prims)
     save_pretty_xml(root, output)
     print(f'Converted {args.input} -> {output} ({len(prims)} emitters)')
 
