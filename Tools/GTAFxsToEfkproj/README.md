@@ -1,6 +1,6 @@
 # GTA SA FXS/FXP -> Effekseer EFKPROJ Converter
 
-Converts GTA SA `.fxs/.fxp` files into `.efkproj` using a **known-good Effekseer project template node** so generated files remain editor-compatible.
+Converts GTA SA `.fxs/.fxp` files into `.efkproj` as a fully self-contained script (no external template file dependency).
 
 ## Usage
 
@@ -10,13 +10,9 @@ python Tools/GTAFxsToEfkproj/convert_fxs_to_efkproj.py <input.fxs> -o <output.ef
 
 If `-o` is omitted, output is `<input_basename>.efkproj`.
 
-## Why template-based
+## Approach
 
-Effekseer project XML contains many fields that are easy to miss when writing from scratch and can cause null-reference errors in the editor. This converter clones a valid node from:
-
-`Release/Sample/01_Suzuki01/001_magma_effect/aura.efkproj`
-
-Then overrides only selected values from GTA data.
+The script embeds an internal editor-safe node XML template and clones it per emitter, then applies GTA values. This keeps required Effekseer fields present while avoiding runtime dependency on another `.efkproj` file.
 
 ## Current mapping
 
