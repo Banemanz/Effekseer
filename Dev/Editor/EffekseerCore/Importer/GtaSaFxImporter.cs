@@ -8,107 +8,123 @@ namespace Effekseer.Importer
 {
 	public static class GtaSaFxImporter
 	{
-		public class FxEntry
+		private class PrimData
 		{
-			public string Type;
-			public string Name;
-			public Dictionary<string, string> Parameters = new Dictionary<string, string>();
-		}
-
-		public static List<FxEntry> Parse(string path)
-		{
-			var entries = new List<FxEntry>();
-			FxEntry current = null;
-			foreach (var raw in File.ReadLines(path))
-			{
-				var line = raw.Trim();
-				if (string.IsNullOrEmpty(line) || line.StartsWith("#") || line.StartsWith("//")) continue;
-
-				if (line.StartsWith("{") || line.StartsWith("}")) continue;
-
-				if (line.StartsWith("effect", StringComparison.OrdinalIgnoreCase) || line.StartsWith("fx", StringComparison.OrdinalIgnoreCase))
-				{
-					if (current != null) entries.Add(current);
-					var tokens = SplitTokens(line);
-					current = new FxEntry();
-					current.Type = tokens.Length > 0 ? tokens[0] : "effect";
-					current.Name = tokens.Length > 1 ? tokens[1] : $"FX_{entries.Count}";
-					continue;
-				}
-
-				if (current == null)
-				{
-					current = new FxEntry() { Type = "effect", Name = $"FX_{entries.Count}" };
-				}
-
-				var pair = line.Split(new[] { '=' }, 2);
-				if (pair.Length == 2)
-				{
-					current.Parameters[pair[0].Trim()] = pair[1].Trim().TrimEnd(';');
-				}
-				else
-				{
-					var tokens = SplitTokens(line);
-					if (tokens.Length >= 2)
-					{
-						current.Parameters[tokens[0]] = string.Join(" ", tokens.Skip(1));
-					}
-				}
-			}
-
-			if (current != null) entries.Add(current);
-			return entries;
+			public string Name = string.Empty;
+			public string Texture = string.Empty;
+			public float Life = 1.0f;
+			public float EmitRate = 30.0f;
+			public float SizeX = 1.0f;
+			public float SizeY = 1.0f;
+			public float Alpha = 255.0f;
 		}
 
 		public static Data.NodeRoot ImportToEffekseer(string path)
 		{
+			var lines = File.ReadAllLines(path);
+			var prims = ParsePrims(lines);
+
 			var root = new Data.NodeRoot();
 			root.SetFullPath(Path.ChangeExtension(path, ".efkefc"));
 
-			var entries = Parse(path);
-			if (entries.Count == 0)
+			if (prims.Count == 0)
 			{
 				root.AddChild();
 				return root;
 			}
 
-			foreach (var entry in entries)
+			foreach (var prim in prims)
 			{
 				var node = root.AddChild();
-				node.Name.SetValueDirectly(entry.Name);
+				node.Name.SetValueDirectly(string.IsNullOrEmpty(prim.Name) ? "GTA_FX" : prim.Name);
 				node.CommonValues.MaxGeneration.SetValue(1);
-				node.CommonValues.Life.SetValue(60);
-				node.CommonValues.GenerationTime.SetValue(1);
-
-				if (entry.Parameters.TryGetValue("texture", out var tex) || entry.Parameters.TryGetValue("tex", out tex))
-				{
-					node.RendererCommonValues.ColorTexture.SetAbsolutePath(tex.Trim('"'));
-				}
-
-				if (entry.Parameters.TryGetValue("size", out var size))
-				{
-					var f = ParseFloat(size, 10.0f);
-					node.ScalingValues.Fixed.ScaleX.SetValue(f);
-					node.ScalingValues.Fixed.ScaleY.SetValue(f);
-					node.ScalingValues.Fixed.ScaleZ.SetValue(f);
-				}
+				node.CommonValues.Life.SetValue((int)Math.Max(1.0f, prim.Life * 60.0f));
+				node.CommonValues.GenerationTime.SetValue(Math.Max(1, (int)(60.0f / Math.Max(1.0f, prim.EmitRate))));
+				node.ScalingValues.Fixed.ScaleX.SetValue(prim.SizeX);
+				node.ScalingValues.Fixed.ScaleY.SetValue(prim.SizeY);
+				node.ScalingValues.Fixed.ScaleZ.SetValue(1.0f);
+				node.RendererCommonValues.ColorTexture.SetAbsolutePath(prim.Texture);
 			}
 
 			return root;
 		}
 
-		private static string[] SplitTokens(string line)
+		private static List<PrimData> ParsePrims(string[] lines)
 		{
-			return line.Split(new[] { ' ', '\t', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+			var prims = new List<PrimData>();
+			PrimData current = null;
+			string currentInfo = string.Empty;
+			string currentChannel = string.Empty;
+			bool nextValIsRate = false;
+			bool nextValIsLife = false;
+			bool nextValIsAlpha = false;
+			bool nextValIsSizeX = false;
+			bool nextValIsSizeY = false;
+
+			for (int i = 0; i < lines.Length; i++)
+			{
+				var line = lines[i].Trim();
+				if (string.IsNullOrEmpty(line)) continue;
+
+				if (line.StartsWith("FX_PRIM_EMITTER_DATA", StringComparison.OrdinalIgnoreCase))
+				{
+					if (current != null) prims.Add(current);
+					current = new PrimData();
+					currentInfo = string.Empty;
+					currentChannel = string.Empty;
+					continue;
+				}
+
+				if (current == null) continue;
+
+				if (line.StartsWith("FX_INFO_", StringComparison.OrdinalIgnoreCase))
+				{
+					currentInfo = line;
+					currentChannel = string.Empty;
+					continue;
+				}
+
+				if (line.StartsWith("RATE:", StringComparison.OrdinalIgnoreCase)) nextValIsRate = true;
+				if (line.StartsWith("LIFE:", StringComparison.OrdinalIgnoreCase)) nextValIsLife = true;
+				if (line.StartsWith("ALPHA:", StringComparison.OrdinalIgnoreCase)) { currentChannel = "ALPHA"; nextValIsAlpha = true; }
+				if (line.StartsWith("SIZEX:", StringComparison.OrdinalIgnoreCase)) { currentChannel = "SIZEX"; nextValIsSizeX = true; }
+				if (line.StartsWith("SIZEY:", StringComparison.OrdinalIgnoreCase)) { currentChannel = "SIZEY"; nextValIsSizeY = true; }
+
+				if (TryGetKeyValue(line, out var key, out var value))
+				{
+					if (key == "NAME") current.Name = value;
+					if (key == "TEXTURE" && value != "NULL") current.Texture = value;
+
+					if (key == "VAL")
+					{
+						var f = ParseFloat(value, 0.0f);
+						if (nextValIsRate && currentInfo.StartsWith("FX_INFO_EMRATE")) { current.EmitRate = Math.Max(1.0f, f); nextValIsRate = false; }
+						if (nextValIsLife && currentInfo.StartsWith("FX_INFO_EMLIFE")) { current.Life = Math.Max(0.016f, f); nextValIsLife = false; }
+						if (nextValIsAlpha && currentInfo.StartsWith("FX_INFO_COLOUR") && currentChannel == "ALPHA") { current.Alpha = f; nextValIsAlpha = false; }
+						if (nextValIsSizeX && currentInfo.StartsWith("FX_INFO_SIZE") && currentChannel == "SIZEX") { current.SizeX = Math.Max(0.01f, f); nextValIsSizeX = false; }
+						if (nextValIsSizeY && currentInfo.StartsWith("FX_INFO_SIZE") && currentChannel == "SIZEY") { current.SizeY = Math.Max(0.01f, f); nextValIsSizeY = false; }
+					}
+				}
+			}
+
+			if (current != null) prims.Add(current);
+			return prims;
+		}
+
+		private static bool TryGetKeyValue(string line, out string key, out string value)
+		{
+			key = null;
+			value = null;
+			var index = line.IndexOf(':');
+			if (index <= 0) return false;
+			key = line.Substring(0, index).Trim();
+			value = line.Substring(index + 1).Trim();
+			return true;
 		}
 
 		private static float ParseFloat(string value, float fallback)
 		{
-			var token = SplitTokens(value).FirstOrDefault() ?? string.Empty;
-			if (float.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
-			{
-				return result;
-			}
+			if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result)) return result;
 			return fallback;
 		}
 	}
