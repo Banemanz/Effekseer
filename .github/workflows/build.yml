@@ -46,10 +46,22 @@ jobs:
          cmake --build ./build/ --config Release
         shell: cmd
 
-      - name: Upload Windows x86 artifacts
+      - name: Prepare Windows x86 release tool
+        run: |
+          python release_tool.py
+        shell: cmd
+
+      - name: Upload Windows x86 release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: EffekseerWinX86
+          name: Effekseer${{ env.EFFEKSEER_VERSION }}WinX86
+          path: EffekseerTool
+          if-no-files-found: error
+
+      - name: Upload Windows x86 raw build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: EffekseerWinX86Raw
           path: |
             build/Tool/Effekseer/Release/
             build/Dev/Cpp/Test/Release/
