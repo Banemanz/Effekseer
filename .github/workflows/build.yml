@@ -46,6 +46,15 @@ jobs:
          cmake --build ./build/ --config Release
         shell: cmd
 
+      - name: Upload Windows x86 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: EffekseerWinX86
+          path: |
+            build/Tool/Effekseer/Release/
+            build/Dev/Cpp/Test/Release/
+          if-no-files-found: warn
+
   tests:
     name: Run Tests
     runs-on: windows-2022
@@ -93,7 +102,7 @@ jobs:
 
   Build:
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         name: [linux,windows_x64,mac]
         include:

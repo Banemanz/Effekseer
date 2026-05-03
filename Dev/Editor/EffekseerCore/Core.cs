@@ -1636,5 +1636,4 @@ namespace Effekseer
 			return GetToolHelpURL() + "ToolReference/" + docPage;
 		}
 	}
-
-
+}
