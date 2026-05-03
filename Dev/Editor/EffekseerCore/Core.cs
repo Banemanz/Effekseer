@@ -1606,6 +1606,13 @@ namespace Effekseer
 			convert(Root as Data.NodeBase);
 		}
 
+		public static void ReplaceRoot(Data.NodeRoot root)
+		{
+			Root = root;
+			IsChanged = true;
+			OnAfterLoad?.Invoke();
+		}
+
 		/// <summary>
 		/// Get the help top page URL
 		/// </summary>
